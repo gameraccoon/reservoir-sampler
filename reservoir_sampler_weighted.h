@@ -1,0 +1,267 @@
+// MIT License
+
+// Copyright (c) 2022 Pavel Grebnev
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#include <algorithm>
+#include <cassert>
+#include <cstring>
+#include <random>
+#include <vector>
+#include <type_traits>
+#include <tuple>
+
+template<typename T, typename WeightType = float, typename URBG = std::mt19937, typename RandType = float>
+class ReservoirSamplerWeighted
+{
+public:
+	template<typename URBGT = URBG>
+	ReservoirSamplerWeighted(size_t samplesCount, URBGT&& rand = std::mt19937{std::random_device{}()})
+		: mSamplesCount(samplesCount)
+		, mRand(std::forward<URBGT>(rand))
+	{
+		static_assert(std::is_floating_point_v<RandType>, "RandType should be floating type");
+	}
+
+	~ReservoirSamplerWeighted()
+	{
+		if (mData)
+		{
+			for (size_t i = 0; i < mAllocatedElementsCount; ++i)
+			{
+				mElements[i].~T();
+			}
+			for (size_t i = 0; i < mSamplesCount; ++i)
+			{
+				mQueuePrios[i].~RandType();
+			}
+			std::free(mData);
+		}
+	}
+
+	ReservoirSamplerWeighted(const ReservoirSamplerWeighted& other)
+		: mSamplesCount(other.mSamplesCount)
+		, mWeightJumpOver(other.mWeightJumpOver)
+		, mRand(other.mRand)
+		, mUniformDist(other.mUniformDist)
+		, mAllocatedElementsCount(other.mAllocatedElementsCount)
+	{
+		if (other.mData)
+		{
+			allocateData();
+			for (size_t i = 0; i < mSamplesCount; ++i)
+			{
+				new (mQueuePrios + i) RandType(other.mQueuePrios[i]);
+			}
+
+			std::memcpy(mQueueIndexes, other.mQueueIndexes, sizeof(size_t)*mAllocatedElementsCount);
+
+			for (size_t i = 0; i < mAllocatedElementsCount; ++i)
+			{
+				new (mElements + i) T(other.mElements[i]);
+			}
+		}
+	}
+
+	ReservoirSamplerWeighted(ReservoirSamplerWeighted&& other)
+		: mSamplesCount(other.mSamplesCount)
+		, mWeightJumpOver(other.mWeightJumpOver)
+		, mRand(other.mRand)
+		, mUniformDist(other.mUniformDist)
+		, mAllocatedElementsCount(other.mAllocatedElementsCount)
+		, mData(other.mData)
+		, mQueuePrios(other.mQueuePrios)
+		, mQueueIndexes(other.mQueueIndexes)
+		, mElements(other.mElements)
+	{
+		other.mWeightJumpOver = {};
+		other.mAllocatedElementsCount = 0;
+		other.mData = nullptr;
+		other.mQueuePrios = nullptr;
+		other.mQueueIndexes = nullptr;
+		other.mElements = nullptr;
+	}
+
+	ReservoirSamplerWeighted& operator=(const ReservoirSamplerWeighted&) = delete;
+	ReservoirSamplerWeighted& operator=(ReservoirSamplerWeighted&&) = delete;
+
+	template<typename E, typename = std::enable_if_t<std::is_move_constructible_v<std::decay_t<E>> && std::is_move_assignable_v<std::decay_t<E>> && std::is_same_v<std::decay_t<E>, T>>>
+	void addElement(WeightType weight, E&& element)
+	{
+		emplaceElement(weight, std::move(element));
+	}
+
+	void addElement(WeightType weight, const T& element)
+	{
+		emplaceElement(weight, element);
+	}
+
+	template<typename... Args>
+	void emplaceElement(WeightType weight, Args&&... arguments)
+	{
+		if (mData == nullptr)
+		{
+			prepareData();
+		}
+
+		if (static_cast<RandType>(weight) > static_cast<RandType>(0.0))
+		{
+			if (mAllocatedElementsCount < mSamplesCount)
+			{
+				const RandType r = std::pow(mUniformDist(mRand), static_cast<RandType>(1.0) / weight);
+				insertSorted(r, std::forward<Args>(arguments)...);
+				if (mAllocatedElementsCount == mSamplesCount)
+				{
+					mWeightJumpOver = log(mUniformDist(mRand)) / log(mQueuePrios[0]);
+				}
+			}
+			else
+			{
+				mWeightJumpOver -= static_cast<RandType>(weight);
+				if (mWeightJumpOver <= 0)
+				{
+					const RandType t = std::pow(mQueuePrios[0], weight);
+					const RandType r = std::pow(std::uniform_real_distribution<RandType>(t, static_cast<RandType>(1.0))(mRand), static_cast<RandType>(1.0) / weight);
+
+					insertSortedRemoveFirst(r, std::forward<Args>(arguments)...);
+
+					mWeightJumpOver = log(mUniformDist(mRand)) / log(mQueuePrios[0]);
+				}
+			}
+		}
+	}
+
+	std::pair<const T*, size_t> getResult() const
+	{
+		return std::make_pair(mElements, mAllocatedElementsCount);
+	}
+
+	std::vector<T> consumeResult()
+	{
+		std::vector<T> result;
+		result.reserve(mAllocatedElementsCount);
+		std::move(mElements, mElements + mAllocatedElementsCount, std::back_inserter(result));
+
+		for (size_t i = 0; i < mAllocatedElementsCount; ++i)
+		{
+			mElements[i].~T();
+		}
+		mWeightJumpOver = {};
+		mAllocatedElementsCount = 0;
+		return result;
+	}
+
+	// optionally use in combination with addDummyElement in case creating an object is expensive
+	// you can call addDummyElement when this method returns false as in this case the object won't be considered
+	bool willNextBeConsidered(WeightType weight) const
+	{
+		return (mWeightJumpOver - weight) <= 0;
+	}
+
+	// optionally use this together with willNextBeConsidered, refer to the comment above willNextBeConsidered
+	void addDummyElement(WeightType weight)
+	{
+		assert(!willNextBeConsidered(weight));
+		mWeightJumpOver -= static_cast<RandType>(weight);
+	}
+
+	// optionally use if you don't want to delay the memory allocation to the first element adding
+	void prepareData()
+	{
+		allocateData();
+		for (size_t i = 0; i < mSamplesCount; ++i)
+		{
+			new (mQueuePrios + i) RandType();
+		}
+	}
+
+private:
+	void allocateData()
+	{
+		assert(mData == nullptr);
+		constexpr size_t alignment = std::max(std::max(std::alignment_of_v<RandType>, std::alignment_of_v<size_t>), std::alignment_of_v<T>);
+		const size_t keysExtent = (sizeof(RandType)*mSamplesCount) % std::alignment_of_v<size_t>;
+		const size_t indexesAlignmentGap = keysExtent > 0 ? (std::alignment_of_v<size_t> - keysExtent) : 0;
+		const size_t indexesOffset = sizeof(RandType)*mSamplesCount + indexesAlignmentGap;
+		const size_t indexesExtent = (indexesOffset + sizeof(size_t)*mSamplesCount) % std::alignment_of_v<T>;
+		const size_t elementsAlignmentGap = indexesExtent > 0 ? (std::alignment_of_v<T> - indexesExtent) : 0;
+		const size_t elementsOffset = indexesOffset + sizeof(size_t)*mSamplesCount + elementsAlignmentGap;
+		const size_t alignedSize = elementsOffset + sizeof(T)*mSamplesCount;
+
+		mData = std::aligned_alloc(alignment, alignedSize);
+		mQueuePrios = reinterpret_cast<RandType*>(mData);
+		mQueueIndexes = reinterpret_cast<size_t*>(static_cast<char*>(mData) + indexesOffset);
+		mElements = reinterpret_cast<T*>(static_cast<char*>(mData) + elementsOffset);
+	}
+
+	template<typename... Args>
+	void insertSorted(RandType r, Args&&... arguments)
+	{
+		RandType* it = std::upper_bound(mQueuePrios, mQueuePrios + mAllocatedElementsCount, r);
+		const size_t firstMovedIdx = std::distance(mQueuePrios, it);
+
+		std::move_backward(it, mQueuePrios + mAllocatedElementsCount, mQueuePrios + mAllocatedElementsCount + 1);
+		std::move_backward(mQueueIndexes + firstMovedIdx, mQueueIndexes + mAllocatedElementsCount, mQueueIndexes + mAllocatedElementsCount + 1);
+
+		mQueuePrios[firstMovedIdx] = r;
+		mQueueIndexes[firstMovedIdx] = mAllocatedElementsCount;
+		new (mElements + mAllocatedElementsCount) T(std::forward<Args>(arguments)...);
+		++mAllocatedElementsCount;
+	}
+
+	template<typename... Args>
+	void insertSortedRemoveFirst(RandType r, Args&&... arguments)
+	{
+		RandType* it = std::upper_bound(mQueuePrios + 1, mQueuePrios + mSamplesCount, r);
+		const size_t firstNotMovedIdx = std::distance(mQueuePrios, it);
+		const size_t oldElementIdx = mQueueIndexes[0];
+
+		std::move(mQueuePrios + 1, it, mQueuePrios);
+		std::move(mQueueIndexes + 1, mQueueIndexes + firstNotMovedIdx, mQueueIndexes);
+
+		mQueuePrios[firstNotMovedIdx - 1] = r;
+		mQueueIndexes[firstNotMovedIdx - 1] = oldElementIdx;
+		if constexpr (std::is_assignable_v<T, T> && sizeof...(Args) == 1 && std::is_same_v<std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>, T>)
+		{
+			mElements[oldElementIdx] = std::forward<Args...>(arguments...);
+		}
+		else if constexpr (std::is_move_assignable_v<T>)
+		{
+			mElements[oldElementIdx] = T(std::forward<Args>(arguments)...);
+		}
+		else
+		{
+			// support for non-moveable types
+			mElements[oldElementIdx].~T();
+			new (mElements + (oldElementIdx)) T(std::forward<Args>(arguments)...);
+		}
+	}
+
+private:
+	const size_t mSamplesCount;
+	RandType mWeightJumpOver {};
+	URBG mRand;
+	std::uniform_real_distribution<RandType> mUniformDist{static_cast<RandType>(0.0), static_cast<RandType>(1.0)};
+	size_t mAllocatedElementsCount = 0;
+	void* mData = nullptr;
+	RandType* mQueuePrios = nullptr;
+	size_t* mQueueIndexes = nullptr;
+	T* mElements = nullptr;
+};
