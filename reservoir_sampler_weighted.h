@@ -73,7 +73,7 @@ public:
 		}
 	}
 
-	ReservoirSamplerWeighted(ReservoirSamplerWeighted&& other)
+	ReservoirSamplerWeighted(ReservoirSamplerWeighted&& other) noexcept
 		: mSamplesCount(other.mSamplesCount)
 		, mWeightJumpOver(other.mWeightJumpOver)
 		, mRand(other.mRand)
@@ -91,7 +91,7 @@ public:
 	}
 
 	ReservoirSamplerWeighted& operator=(const ReservoirSamplerWeighted&) = delete;
-	ReservoirSamplerWeighted& operator=(ReservoirSamplerWeighted&&) = delete;
+	ReservoirSamplerWeighted& operator=(ReservoirSamplerWeighted&&) noexcept = delete;
 
 	template<typename E, typename = std::enable_if_t<std::is_move_constructible_v<std::decay_t<E>> && std::is_move_assignable_v<std::decay_t<E>> && std::is_same_v<std::decay_t<E>, T>>>
 	void addElement(WeightType weight, E&& element)
@@ -183,7 +183,7 @@ public:
 		mWeightJumpOver -= static_cast<RandType>(weight);
 	}
 
-	// optionally use if you don't want to delay the memory allocation to the first element adding
+	// optionally use if you don't want to delay the memory allocation to the moment of adding the first element
 	void allocateData()
 	{
 		assert(mData == nullptr);
