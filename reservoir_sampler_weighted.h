@@ -64,8 +64,7 @@ public:
 		{
 			allocateData();
 
-			std::memcpy(mQueuePrios, other.mQueuePrios, sizeof(size_t)*mSamplesCount);
-			std::memcpy(mQueueIndexes, other.mQueueIndexes, sizeof(size_t)*mAllocatedElementsCount);
+			std::memcpy(mPriorityHeap, other.mPriorityHeap, sizeof(HeapItem)*mAllocatedElementsCount);
 
 			for (size_t i = 0; i < mAllocatedElementsCount; ++i)
 			{
@@ -81,15 +80,13 @@ public:
 		, mUniformDist(other.mUniformDist)
 		, mAllocatedElementsCount(other.mAllocatedElementsCount)
 		, mData(other.mData)
-		, mQueuePrios(other.mQueuePrios)
-		, mQueueIndexes(other.mQueueIndexes)
+		, mPriorityHeap(other.mPriorityHeap)
 		, mElements(other.mElements)
 	{
 		other.mWeightJumpOver = {};
 		other.mAllocatedElementsCount = 0;
 		other.mData = nullptr;
-		other.mQueuePrios = nullptr;
-		other.mQueueIndexes = nullptr;
+		other.mPriorityHeap = nullptr;
 		other.mElements = nullptr;
 	}
 
@@ -123,7 +120,7 @@ public:
 				insertSorted(r, std::forward<Args>(arguments)...);
 				if (mAllocatedElementsCount == mSamplesCount)
 				{
-					mWeightJumpOver = log(mUniformDist(mRand)) / log(mQueuePrios[0]);
+					mWeightJumpOver = log(mUniformDist(mRand)) / log(mPriorityHeap[0].priority);
 				}
 			}
 			else
@@ -131,12 +128,12 @@ public:
 				mWeightJumpOver -= static_cast<RandType>(weight);
 				if (mWeightJumpOver <= 0)
 				{
-					const RandType t = std::pow(mQueuePrios[0], weight);
+					const RandType t = std::pow(mPriorityHeap[0].priority, weight);
 					const RandType r = std::pow(std::uniform_real_distribution<RandType>(t, static_cast<RandType>(1.0))(mRand), static_cast<RandType>(1.0) / weight);
 
 					insertSortedRemoveFirst(r, std::forward<Args>(arguments)...);
 
-					mWeightJumpOver = log(mUniformDist(mRand)) / log(mQueuePrios[0]);
+					mWeightJumpOver = log(mUniformDist(mRand)) / log(mPriorityHeap[0].priority);
 				}
 			}
 		}
@@ -190,33 +187,31 @@ public:
 	void allocateData()
 	{
 		assert(mData == nullptr);
-		constexpr size_t alignment = std::max(std::max(std::alignment_of_v<RandType>, std::alignment_of_v<size_t>), std::alignment_of_v<T>);
-		const size_t keysExtent = (sizeof(RandType)*mSamplesCount) % std::alignment_of_v<size_t>;
-		const size_t indexesAlignmentGap = keysExtent > 0 ? (std::alignment_of_v<size_t> - keysExtent) : 0;
-		const size_t indexesOffset = sizeof(RandType)*mSamplesCount + indexesAlignmentGap;
-		const size_t indexesExtent = (indexesOffset + sizeof(size_t)*mSamplesCount) % std::alignment_of_v<T>;
-		const size_t elementsAlignmentGap = indexesExtent > 0 ? (std::alignment_of_v<T> - indexesExtent) : 0;
-		const size_t elementsOffset = indexesOffset + sizeof(size_t)*mSamplesCount + elementsAlignmentGap;
+		constexpr size_t alignment = std::max(std::alignment_of_v<HeapItem>, std::alignment_of_v<T>);
+		const size_t heapExtent = (sizeof(HeapItem)*mSamplesCount) % std::alignment_of_v<T>;
+		const size_t elementsAlignmentGap = heapExtent > 0 ? (std::alignment_of_v<T> - heapExtent) : 0;
+		const size_t elementsOffset = sizeof(HeapItem)*mSamplesCount + elementsAlignmentGap;
 		const size_t alignedSize = elementsOffset + sizeof(T)*mSamplesCount;
 
 		mData = std::aligned_alloc(alignment, alignedSize);
-		mQueuePrios = reinterpret_cast<RandType*>(mData);
-		mQueueIndexes = reinterpret_cast<size_t*>(static_cast<char*>(mData) + indexesOffset);
+		mPriorityHeap = reinterpret_cast<HeapItem*>(mData);
 		mElements = reinterpret_cast<T*>(static_cast<char*>(mData) + elementsOffset);
 	}
+
+private:
+	struct HeapItem
+	{
+		RandType priority;
+		size_t index;
+	};
 
 private:
 	template<typename... Args>
 	void insertSorted(RandType r, Args&&... arguments)
 	{
-		RandType* it = std::upper_bound(mQueuePrios, mQueuePrios + mAllocatedElementsCount, r);
-		const size_t firstMovedIdx = std::distance(mQueuePrios, it);
+		mPriorityHeap[mAllocatedElementsCount] = {r, mAllocatedElementsCount};
+		std::push_heap(mPriorityHeap, mPriorityHeap + mAllocatedElementsCount, [](const HeapItem& a, const HeapItem& b){ return a.priority > b.priority; });
 
-		std::move_backward(it, mQueuePrios + mAllocatedElementsCount, mQueuePrios + mAllocatedElementsCount + 1);
-		std::move_backward(mQueueIndexes + firstMovedIdx, mQueueIndexes + mAllocatedElementsCount, mQueueIndexes + mAllocatedElementsCount + 1);
-
-		mQueuePrios[firstMovedIdx] = r;
-		mQueueIndexes[firstMovedIdx] = mAllocatedElementsCount;
 		new (mElements + mAllocatedElementsCount) T(std::forward<Args>(arguments)...);
 		++mAllocatedElementsCount;
 	}
@@ -224,15 +219,12 @@ private:
 	template<typename... Args>
 	void insertSortedRemoveFirst(RandType r, Args&&... arguments)
 	{
-		RandType* it = std::upper_bound(mQueuePrios + 1, mQueuePrios + mSamplesCount, r);
-		const size_t firstNotMovedIdx = std::distance(mQueuePrios, it);
-		const size_t oldElementIdx = mQueueIndexes[0];
+		std::pop_heap(mPriorityHeap, mPriorityHeap + mSamplesCount, [](const HeapItem& a, const HeapItem& b){ return a.priority > b.priority; });
+		const size_t oldElementIdx = mPriorityHeap[mSamplesCount - 1].index;
 
-		std::move(mQueuePrios + 1, it, mQueuePrios);
-		std::move(mQueueIndexes + 1, mQueueIndexes + firstNotMovedIdx, mQueueIndexes);
+		mPriorityHeap[mSamplesCount - 1] = {r, oldElementIdx};
+		std::push_heap(mPriorityHeap, mPriorityHeap + mSamplesCount, [](const HeapItem& a, const HeapItem& b){ return a.priority > b.priority; });
 
-		mQueuePrios[firstNotMovedIdx - 1] = r;
-		mQueueIndexes[firstNotMovedIdx - 1] = oldElementIdx;
 		if constexpr (std::is_assignable_v<T, T> && sizeof...(Args) == 1 && std::is_same_v<std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>, T>)
 		{
 			mElements[oldElementIdx] = std::forward<Args...>(arguments...);
@@ -256,7 +248,6 @@ private:
 	std::uniform_real_distribution<RandType> mUniformDist{static_cast<RandType>(0.0), static_cast<RandType>(1.0)};
 	size_t mAllocatedElementsCount = 0;
 	void* mData = nullptr;
-	RandType* mQueuePrios = nullptr;
-	size_t* mQueueIndexes = nullptr;
+	HeapItem* mPriorityHeap = nullptr;
 	T* mElements = nullptr;
 };
