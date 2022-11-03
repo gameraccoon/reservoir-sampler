@@ -120,7 +120,7 @@ public:
 				insertSorted(r, std::forward<Args>(arguments)...);
 				if (mAllocatedElementsCount == mSamplesCount)
 				{
-					mWeightJumpOver = log(mUniformDist(mRand)) / log(mPriorityHeap[0].priority);
+					mWeightJumpOver = std::log(mUniformDist(mRand)) / std::log(mPriorityHeap[0].priority);
 				}
 			}
 			else
@@ -133,7 +133,7 @@ public:
 
 					insertSortedRemoveFirst(r, std::forward<Args>(arguments)...);
 
-					mWeightJumpOver = log(mUniformDist(mRand)) / log(mPriorityHeap[0].priority);
+					mWeightJumpOver = std::log(mUniformDist(mRand)) / std::log(mPriorityHeap[0].priority);
 				}
 			}
 		}
