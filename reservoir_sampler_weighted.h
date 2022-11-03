@@ -37,6 +37,7 @@ public:
 		: mSamplesCount(samplesCount)
 		, mRand(std::forward<URBGT>(rand))
 	{
+		static_assert(std::is_arithmetic_v<WeightType>, "WeightType should be ariphmetic");
 		static_assert(std::is_floating_point_v<RandType>, "RandType should be floating type");
 	}
 
@@ -47,10 +48,6 @@ public:
 			for (size_t i = 0; i < mAllocatedElementsCount; ++i)
 			{
 				mElements[i].~T();
-			}
-			for (size_t i = 0; i < mSamplesCount; ++i)
-			{
-				mQueuePrios[i].~RandType();
 			}
 			std::free(mData);
 		}
@@ -66,11 +63,8 @@ public:
 		if (other.mData)
 		{
 			allocateData();
-			for (size_t i = 0; i < mSamplesCount; ++i)
-			{
-				new (mQueuePrios + i) RandType(other.mQueuePrios[i]);
-			}
 
+			std::memcpy(mQueuePrios, other.mQueuePrios, sizeof(size_t)*mSamplesCount);
 			std::memcpy(mQueueIndexes, other.mQueueIndexes, sizeof(size_t)*mAllocatedElementsCount);
 
 			for (size_t i = 0; i < mAllocatedElementsCount; ++i)
@@ -118,7 +112,7 @@ public:
 	{
 		if (mData == nullptr)
 		{
-			prepareData();
+			allocateData();
 		}
 
 		if (static_cast<RandType>(weight) > static_cast<RandType>(0.0))
@@ -183,16 +177,6 @@ public:
 	}
 
 	// optionally use if you don't want to delay the memory allocation to the first element adding
-	void prepareData()
-	{
-		allocateData();
-		for (size_t i = 0; i < mSamplesCount; ++i)
-		{
-			new (mQueuePrios + i) RandType();
-		}
-	}
-
-private:
 	void allocateData()
 	{
 		assert(mData == nullptr);
@@ -211,6 +195,7 @@ private:
 		mElements = reinterpret_cast<T*>(static_cast<char*>(mData) + elementsOffset);
 	}
 
+private:
 	template<typename... Args>
 	void insertSorted(RandType r, Args&&... arguments)
 	{
