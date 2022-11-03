@@ -162,6 +162,16 @@ public:
 		return result;
 	}
 
+	void reset()
+	{
+		for (size_t i = 0; i < mAllocatedElementsCount; ++i)
+		{
+			mElements[i].~T();
+		}
+		mWeightJumpOver = {};
+		mAllocatedElementsCount = 0;
+	}
+
 	// optionally use in combination with addDummyElement in case creating an object is expensive
 	// you can call addDummyElement when this method returns false as in this case the object won't be considered
 	bool willNextBeConsidered(WeightType weight) const
