@@ -36,8 +36,8 @@ public:
 		: mSamplesCount(samplesCount)
 		, mRand(std::forward<URBGT>(rand))
 	{
-		static_assert(std::is_arithmetic_v<WeightType>, "WeightType should be ariphmetic");
-		static_assert(std::is_floating_point_v<RandType>, "RandType should be floating type");
+		static_assert(std::is_arithmetic_v<WeightType>, "WeightType should be arithmetic type");
+		static_assert(std::is_floating_point_v<RandType>, "RandType should be floating point type");
 	}
 
 	~ReservoirSamplerWeighted()
@@ -125,6 +125,7 @@ public:
 		return result;
 	}
 
+	// fully resets the state and cleans all the stored data, allowing to be reused for a new sampling
 	void reset()
 	{
 		for (size_t i = 0; i < mAllocatedElementsCount; ++i)
@@ -135,14 +136,14 @@ public:
 		mAllocatedElementsCount = 0;
 	}
 
-	// optionally use in combination with addDummyElement in case creating an object is expensive
-	// you can call addDummyElement when this method returns false as in this case the object won't be considered
+	// optionally use this function in combination with addDummyElement in case creation of an object is expensive
+	// you can call addDummyElement every time this method returns false as in these cases the objects will be skipped
 	bool willNextBeConsidered(WeightType weight) const
 	{
 		return (mWeightJumpOver - weight) <= 0;
 	}
 
-	// optionally use this together with willNextBeConsidered, refer to the comment above willNextBeConsidered
+	// optionally use this in combination with willNextBeConsidered, refer to the comment above willNextBeConsidered
 	void addDummyElement(WeightType weight)
 	{
 		assert(!willNextBeConsidered(weight));
@@ -194,7 +195,7 @@ private:
 			else
 			{
 				mWeightJumpOver -= static_cast<RandType>(weight);
-				if (mWeightJumpOver <= 0)
+				if (mWeightJumpOver <= static_cast<RandType>(0.0))
 				{
 					const RandType t = std::pow(mPriorityHeap[0].priority, weight);
 					const RandType r = std::pow(std::uniform_real_distribution<RandType>(t, static_cast<RandType>(1.0))(mRand), static_cast<RandType>(1.0) / weight);
