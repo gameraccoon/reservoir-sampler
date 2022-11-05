@@ -26,7 +26,6 @@
 #include <random>
 #include <vector>
 #include <type_traits>
-#include <tuple>
 
 template<typename T, typename WeightType = float, typename URBG = std::mt19937, typename RandType = float>
 class ReservoirSamplerWeighted
@@ -93,50 +92,21 @@ public:
 	ReservoirSamplerWeighted& operator=(const ReservoirSamplerWeighted&) = delete;
 	ReservoirSamplerWeighted& operator=(ReservoirSamplerWeighted&&) noexcept = delete;
 
-	template<typename E, typename = std::enable_if_t<std::is_move_constructible_v<std::decay_t<E>> && std::is_move_assignable_v<std::decay_t<E>> && std::is_same_v<std::decay_t<E>, T>>>
+	template<typename E, typename = std::enable_if_t<!std::is_lvalue_reference_v<E> && std::is_move_constructible_v<T> && std::is_same_v<std::decay_t<E>, T>>>
 	void addElement(WeightType weight, E&& element)
 	{
-		emplaceElement(weight, std::move(element));
+		emplace<true>(weight, std::move(element));
 	}
 
 	void addElement(WeightType weight, const T& element)
 	{
-		emplaceElement(weight, element);
+		emplace<true>(weight, std::ref(element));
 	}
 
 	template<typename... Args>
 	void emplaceElement(WeightType weight, Args&&... arguments)
 	{
-		if (mData == nullptr)
-		{
-			allocateData();
-		}
-
-		if (static_cast<RandType>(weight) > static_cast<RandType>(0.0))
-		{
-			if (mAllocatedElementsCount < mSamplesCount)
-			{
-				const RandType r = std::pow(mUniformDist(mRand), static_cast<RandType>(1.0) / weight);
-				insertSorted(r, std::forward<Args>(arguments)...);
-				if (mAllocatedElementsCount == mSamplesCount)
-				{
-					mWeightJumpOver = std::log(mUniformDist(mRand)) / std::log(mPriorityHeap[0].priority);
-				}
-			}
-			else
-			{
-				mWeightJumpOver -= static_cast<RandType>(weight);
-				if (mWeightJumpOver <= 0)
-				{
-					const RandType t = std::pow(mPriorityHeap[0].priority, weight);
-					const RandType r = std::pow(std::uniform_real_distribution<RandType>(t, static_cast<RandType>(1.0))(mRand), static_cast<RandType>(1.0) / weight);
-
-					insertSortedRemoveFirst(r, std::forward<Args>(arguments)...);
-
-					mWeightJumpOver = std::log(mUniformDist(mRand)) / std::log(mPriorityHeap[0].priority);
-				}
-			}
-		}
+		emplace<false>(weight, std::forward<Args>(arguments)...);
 	}
 
 	std::pair<const T*, size_t> getResult() const
@@ -150,12 +120,8 @@ public:
 		result.reserve(mAllocatedElementsCount);
 		std::move(mElements, mElements + mAllocatedElementsCount, std::back_inserter(result));
 
-		for (size_t i = 0; i < mAllocatedElementsCount; ++i)
-		{
-			mElements[i].~T();
-		}
-		mWeightJumpOver = {};
-		mAllocatedElementsCount = 0;
+		reset();
+
 		return result;
 	}
 
@@ -206,6 +172,41 @@ private:
 	};
 
 private:
+	template<bool isT, typename... Args>
+	void emplace(WeightType weight, Args&&... arguments)
+	{
+		if (mData == nullptr)
+		{
+			allocateData();
+		}
+
+		if (static_cast<RandType>(weight) > static_cast<RandType>(0.0))
+		{
+			if (mAllocatedElementsCount < mSamplesCount)
+			{
+				const RandType r = std::pow(mUniformDist(mRand), static_cast<RandType>(1.0) / weight);
+				insertSorted(r, std::forward<Args>(arguments)...);
+				if (mAllocatedElementsCount == mSamplesCount)
+				{
+					mWeightJumpOver = std::log(mUniformDist(mRand)) / std::log(mPriorityHeap[0].priority);
+				}
+			}
+			else
+			{
+				mWeightJumpOver -= static_cast<RandType>(weight);
+				if (mWeightJumpOver <= 0)
+				{
+					const RandType t = std::pow(mPriorityHeap[0].priority, weight);
+					const RandType r = std::pow(std::uniform_real_distribution<RandType>(t, static_cast<RandType>(1.0))(mRand), static_cast<RandType>(1.0) / weight);
+
+					insertSortedRemoveFirst<isT>(r, std::forward<Args>(arguments)...);
+
+					mWeightJumpOver = std::log(mUniformDist(mRand)) / std::log(mPriorityHeap[0].priority);
+				}
+			}
+		}
+	}
+
 	template<typename... Args>
 	void insertSorted(RandType r, Args&&... arguments)
 	{
@@ -216,7 +217,7 @@ private:
 		++mAllocatedElementsCount;
 	}
 
-	template<typename... Args>
+	template<bool isT, typename... Args>
 	void insertSortedRemoveFirst(RandType r, Args&&... arguments)
 	{
 		std::pop_heap(mPriorityHeap, mPriorityHeap + mSamplesCount, [](const HeapItem& a, const HeapItem& b){ return a.priority > b.priority; });
@@ -225,7 +226,7 @@ private:
 		mPriorityHeap[mSamplesCount - 1] = {r, oldElementIdx};
 		std::push_heap(mPriorityHeap, mPriorityHeap + mSamplesCount, [](const HeapItem& a, const HeapItem& b){ return a.priority > b.priority; });
 
-		if constexpr (std::is_assignable_v<T, T> && sizeof...(Args) == 1 && std::is_same_v<std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>, T>)
+		if constexpr (isT && (std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>))
 		{
 			mElements[oldElementIdx] = std::forward<Args...>(arguments...);
 		}
@@ -235,7 +236,6 @@ private:
 		}
 		else
 		{
-			// support for non-moveable types
 			mElements[oldElementIdx].~T();
 			new (mElements + (oldElementIdx)) T(std::forward<Args>(arguments)...);
 		}
