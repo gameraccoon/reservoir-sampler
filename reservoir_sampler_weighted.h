@@ -38,6 +38,7 @@ public:
 	{
 		static_assert(std::is_arithmetic_v<WeightType>, "WeightType should be arithmetic type");
 		static_assert(std::is_floating_point_v<RandType>, "RandType should be floating point type");
+		assert(samplesCount > 0);
 	}
 
 	~ReservoirSamplerWeighted()
