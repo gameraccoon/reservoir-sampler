@@ -20,6 +20,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#pragma once
+
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -32,7 +34,7 @@ class ReservoirSamplerWeighted
 {
 public:
 	template<typename URBGT = URBG>
-	ReservoirSamplerWeighted(size_t samplesCount, URBGT&& rand = std::mt19937{std::random_device{}()})
+	explicit ReservoirSamplerWeighted(size_t samplesCount, URBGT&& rand = std::mt19937{std::random_device{}()})
 		: mSamplesCount(samplesCount)
 		, mRand(std::forward<URBGT>(rand))
 	{
@@ -43,14 +45,8 @@ public:
 
 	~ReservoirSamplerWeighted()
 	{
-		if (mData)
-		{
-			for (size_t i = 0; i < mAllocatedElementsCount; ++i)
-			{
-				mElements[i].~T();
-			}
-			std::free(mData);
-		}
+		reset();
+		std::free(mData);
 	}
 
 	ReservoirSamplerWeighted(const ReservoirSamplerWeighted& other)
@@ -58,15 +54,15 @@ public:
 		, mWeightJumpOver(other.mWeightJumpOver)
 		, mRand(other.mRand)
 		, mUniformDist(other.mUniformDist)
-		, mAllocatedElementsCount(other.mAllocatedElementsCount)
+		, mFilledElementsCount(other.mFilledElementsCount)
 	{
 		if (other.mData)
 		{
 			allocateData();
 
-			std::memcpy(mPriorityHeap, other.mPriorityHeap, sizeof(HeapItem)*mAllocatedElementsCount);
+			std::memcpy(mPriorityHeap, other.mPriorityHeap, sizeof(HeapItem)*mFilledElementsCount);
 
-			for (size_t i = 0; i < mAllocatedElementsCount; ++i)
+			for (size_t i = 0; i < mFilledElementsCount; ++i)
 			{
 				new (mElements + i) T(other.mElements[i]);
 			}
@@ -78,13 +74,13 @@ public:
 		, mWeightJumpOver(other.mWeightJumpOver)
 		, mRand(other.mRand)
 		, mUniformDist(other.mUniformDist)
-		, mAllocatedElementsCount(other.mAllocatedElementsCount)
+		, mFilledElementsCount(other.mFilledElementsCount)
 		, mData(other.mData)
 		, mPriorityHeap(other.mPriorityHeap)
 		, mElements(other.mElements)
 	{
 		other.mWeightJumpOver = {};
-		other.mAllocatedElementsCount = 0;
+		other.mFilledElementsCount = 0;
 		other.mData = nullptr;
 		other.mPriorityHeap = nullptr;
 		other.mElements = nullptr;
@@ -112,14 +108,14 @@ public:
 
 	std::pair<const T*, size_t> getResult() const
 	{
-		return std::make_pair(mElements, mAllocatedElementsCount);
+		return std::make_pair(mElements, mFilledElementsCount);
 	}
 
 	std::vector<T> consumeResult()
 	{
 		std::vector<T> result;
-		result.reserve(mAllocatedElementsCount);
-		std::move(mElements, mElements + mAllocatedElementsCount, std::back_inserter(result));
+		result.reserve(mFilledElementsCount);
+		std::move(mElements, mElements + mFilledElementsCount, std::back_inserter(result));
 
 		reset();
 
@@ -129,12 +125,12 @@ public:
 	// fully resets the state and cleans all the stored data, allowing to be reused for a new sampling
 	void reset()
 	{
-		for (size_t i = 0; i < mAllocatedElementsCount; ++i)
+		for (size_t i = 0; i < mFilledElementsCount; ++i)
 		{
 			mElements[i].~T();
 		}
 		mWeightJumpOver = {};
-		mAllocatedElementsCount = 0;
+		mFilledElementsCount = 0;
 	}
 
 	// optionally use this function in combination with addDummyElement in case creation of an object is expensive
@@ -184,11 +180,11 @@ private:
 
 		if (static_cast<RandType>(weight) > static_cast<RandType>(0.0))
 		{
-			if (mAllocatedElementsCount < mSamplesCount)
+			if (mFilledElementsCount < mSamplesCount)
 			{
 				const RandType r = std::pow(mUniformDist(mRand), static_cast<RandType>(1.0) / weight);
 				insertSorted(r, std::forward<Args>(arguments)...);
-				if (mAllocatedElementsCount == mSamplesCount)
+				if (mFilledElementsCount == mSamplesCount)
 				{
 					mWeightJumpOver = std::log(mUniformDist(mRand)) / std::log(mPriorityHeap[0].priority);
 				}
@@ -212,11 +208,11 @@ private:
 	template<typename... Args>
 	void insertSorted(RandType r, Args&&... arguments)
 	{
-		mPriorityHeap[mAllocatedElementsCount] = {r, mAllocatedElementsCount};
-		std::push_heap(mPriorityHeap, mPriorityHeap + mAllocatedElementsCount, [](const HeapItem& a, const HeapItem& b){ return a.priority > b.priority; });
+		mPriorityHeap[mFilledElementsCount] = {r, mFilledElementsCount};
+		std::push_heap(mPriorityHeap, mPriorityHeap + mFilledElementsCount, [](const HeapItem& a, const HeapItem& b){ return a.priority > b.priority; });
 
-		new (mElements + mAllocatedElementsCount) T(std::forward<Args>(arguments)...);
-		++mAllocatedElementsCount;
+		new (mElements + mFilledElementsCount) T(std::forward<Args>(arguments)...);
+		++mFilledElementsCount;
 	}
 
 	template<bool isT, typename... Args>
@@ -239,7 +235,7 @@ private:
 		else
 		{
 			mElements[oldElementIdx].~T();
-			new (mElements + (oldElementIdx)) T(std::forward<Args>(arguments)...);
+			new (mElements + oldElementIdx) T(std::forward<Args>(arguments)...);
 		}
 	}
 
@@ -248,7 +244,7 @@ private:
 	RandType mWeightJumpOver {};
 	URBG mRand;
 	std::uniform_real_distribution<RandType> mUniformDist{static_cast<RandType>(0.0), static_cast<RandType>(1.0)};
-	size_t mAllocatedElementsCount = 0;
+	size_t mFilledElementsCount = 0;
 	void* mData = nullptr;
 	HeapItem* mPriorityHeap = nullptr;
 	T* mElements = nullptr;
