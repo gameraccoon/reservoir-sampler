@@ -209,7 +209,7 @@ private:
 	void insertSorted(RandType r, Args&&... arguments)
 	{
 		mPriorityHeap[mFilledElementsCount] = {r, mFilledElementsCount};
-		std::push_heap(mPriorityHeap, mPriorityHeap + mFilledElementsCount, [](const HeapItem& a, const HeapItem& b){ return a.priority > b.priority; });
+		std::push_heap(mPriorityHeap, mPriorityHeap + mFilledElementsCount + 1, [](const HeapItem& a, const HeapItem& b){ return a.priority > b.priority; });
 
 		new (mElements + mFilledElementsCount) T(std::forward<Args>(arguments)...);
 		++mFilledElementsCount;
