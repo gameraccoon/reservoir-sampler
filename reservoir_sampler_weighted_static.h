@@ -34,7 +34,7 @@ template<typename T, size_t SamplesCount, typename WeightType = float, typename 
 class ReservoirSamplerWeightedStatic
 {
 public:
-	template<typename URBGT = URBG, typename = std::enable_if_t<!std::is_same_v<std::decay_t<URBGT>, ReservoirSamplerWeightedStatic<T, SamplesCount, WeightType>>>>
+	template<typename URBGT = URBG, typename = std::enable_if_t<!std::is_same_v<std::decay_t<URBGT>, ReservoirSamplerWeightedStatic<T, SamplesCount, WeightType, URBG, RandType>>>>
 	explicit ReservoirSamplerWeightedStatic(URBGT&& rand = std::mt19937{std::random_device{}()})
 		: mRand(std::forward<URBGT>(rand))
 	{

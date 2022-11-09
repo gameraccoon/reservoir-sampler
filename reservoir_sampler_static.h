@@ -34,7 +34,7 @@ template<typename T, size_t SamplesCount, typename URBG = std::mt19937, typename
 class ReservoirSamplerStatic
 {
 public:
-	template<typename URBGT = URBG, typename = std::enable_if_t<!std::is_same_v<std::decay_t<URBGT>, ReservoirSamplerStatic<T, SamplesCount>>>>
+	template<typename URBGT = URBG, typename = std::enable_if_t<!std::is_same_v<std::decay_t<URBGT>, ReservoirSamplerStatic<T, SamplesCount, URBG, RandType>>>>
 	explicit ReservoirSamplerStatic(URBGT&& rand = std::mt19937{std::random_device{}()})
 		: mRand(std::forward<URBGT>(rand))
 	{
