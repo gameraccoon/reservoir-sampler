@@ -146,6 +146,21 @@ public:
 		--mIndexesToJumpOver;
 	}
 
+	// optionally use in case in combination with jumpAhead to skip elements that are not going to be considered
+	// in case iterating over these elements can be skipped
+	size_t getNextElementsSkippedNumber()
+	{
+		return mIndexesToJumpOver;
+	}
+
+	// optionally use this in combination with getNextElementsSkippedNumber,
+	// refer to the comment above getNextElementsSkippedNumber
+	void jumpAhead(size_t elementsToJumpOver)
+	{
+		assert(elementsToJumpOver <= mIndexesToJumpOver);
+		mIndexesToJumpOver -= elementsToJumpOver;
+	}
+
 	// optionally use if you don't want to delay the memory allocation to the moment of adding the first element
 	void allocateData()
 	{
