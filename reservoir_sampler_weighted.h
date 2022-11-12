@@ -26,8 +26,8 @@
 #include <cassert>
 #include <cstring>
 #include <random>
-#include <vector>
 #include <type_traits>
+#include <vector>
 
 template<typename T, typename WeightType = float, typename URBG = std::mt19937, typename RandType = float>
 class ReservoirSamplerWeighted
@@ -182,7 +182,7 @@ private:
 		{
 			if (mFilledElementsCount < mSamplesCount)
 			{
-				const RandType r = std::pow(mUniformDist(mRand), static_cast<RandType>(1.0) / weight);
+				const RandType r = std::pow(mUniformDist(mRand), static_cast<RandType>(1.0) / static_cast<RandType>(weight));
 				insertSorted(r, std::forward<Args>(arguments)...);
 				if (mFilledElementsCount == mSamplesCount)
 				{
@@ -194,8 +194,8 @@ private:
 				mWeightJumpOver -= static_cast<RandType>(weight);
 				if (mWeightJumpOver <= static_cast<RandType>(0.0))
 				{
-					const RandType t = std::pow(mPriorityHeap[0].priority, weight);
-					const RandType r = std::pow(std::uniform_real_distribution<RandType>(t, static_cast<RandType>(1.0))(mRand), static_cast<RandType>(1.0) / weight);
+					const RandType t = std::pow(mPriorityHeap[0].priority, static_cast<RandType>(weight));
+					const RandType r = std::pow(std::uniform_real_distribution<RandType>(t, static_cast<RandType>(1.0))(mRand), static_cast<RandType>(1.0) / static_cast<RandType>(weight));
 
 					insertSortedRemoveFirst<isT>(r, std::forward<Args>(arguments)...);
 

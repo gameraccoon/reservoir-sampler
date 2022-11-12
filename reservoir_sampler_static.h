@@ -27,8 +27,8 @@
 #include <cstddef>
 #include <cstring>
 #include <random>
-#include <vector>
 #include <type_traits>
+#include <vector>
 
 template<typename T, size_t SamplesCount, typename URBG = std::mt19937, typename RandType = float>
 class ReservoirSamplerStatic
@@ -150,7 +150,7 @@ private:
 			if (mFilledElementsCount == SamplesCount)
 			{
 				mWeightJumpOver = std::exp(std::log(mUniformDist(mRand)) / SamplesCount);
-				mIndexesToJumpOver = std::floor(std::log(mUniformDist(mRand))/std::log(static_cast<RandType>(1.0) - mWeightJumpOver));
+				mIndexesToJumpOver = static_cast<size_t>(std::floor(std::log(mUniformDist(mRand))/std::log(static_cast<RandType>(1.0) - mWeightJumpOver)));
 			}
 		}
 		else
@@ -160,7 +160,7 @@ private:
 				replaceElement<isT>(std::forward<Args>(arguments)...);
 
 				mWeightJumpOver *= std::exp(std::log(mUniformDist(mRand)) / SamplesCount);
-				mIndexesToJumpOver += std::floor(std::log(mUniformDist(mRand))/std::log(static_cast<RandType>(1.0) - mWeightJumpOver));
+				mIndexesToJumpOver += static_cast<size_t>(std::floor(std::log(mUniformDist(mRand))/std::log(static_cast<RandType>(1.0) - mWeightJumpOver)));
 			}
 			else
 			{
