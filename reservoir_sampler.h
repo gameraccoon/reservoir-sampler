@@ -45,7 +45,12 @@ public:
 	~ReservoirSampler()
 	{
 		reset();
+
+#ifdef _MSC_VER
+		_aligned_free(mData);
+#else
 		std::free(mData);
+#endif
 	}
 
 	ReservoirSampler(const ReservoirSampler& other)
@@ -165,7 +170,11 @@ public:
 	void allocateData()
 	{
 		assert(mData == nullptr);
+#ifdef _MSC_VER // MSVC doesn't support std::aligned_alloc
+		mData = _aligned_malloc(sizeof(T) * mSamplesCount, std::alignment_of_v<T>);
+#else
 		mData = std::aligned_alloc(std::alignment_of_v<T>, sizeof(T)*mSamplesCount);
+#endif
 		mElements = reinterpret_cast<T*>(mData);
 	}
 

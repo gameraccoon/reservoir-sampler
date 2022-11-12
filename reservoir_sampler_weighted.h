@@ -46,7 +46,11 @@ public:
 	~ReservoirSamplerWeighted()
 	{
 		reset();
+#ifdef _MSC_VER
+		_aligned_free(mData);
+#else
 		std::free(mData);
+#endif
 	}
 
 	ReservoirSamplerWeighted(const ReservoirSamplerWeighted& other)
@@ -157,7 +161,11 @@ public:
 		const size_t elementsOffset = sizeof(HeapItem)*mSamplesCount + elementsAlignmentGap;
 		const size_t alignedSize = elementsOffset + sizeof(T)*mSamplesCount;
 
+#ifdef _MSC_VER // MSVC doesn't support std::aligned_alloc
+		mData = _aligned_malloc(alignedSize, alignment);
+#else
 		mData = std::aligned_alloc(alignment, alignedSize);
+#endif
 		mPriorityHeap = reinterpret_cast<HeapItem*>(mData);
 		mElements = reinterpret_cast<T*>(static_cast<char*>(mData) + elementsOffset);
 	}
