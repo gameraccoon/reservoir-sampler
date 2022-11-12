@@ -30,6 +30,9 @@
 #include <type_traits>
 #include <vector>
 
+// ReservoirSamplerWeightedStatic implements Algorithm A-ExpJ for reservoir sampling
+// https://en.wikipedia.org/wiki/Reservoir_sampling#Algorithm_A-ExpJ
+// Objects of the class don't allocate memory on heap (unless stored types allocate data themselves)
 template<typename T, size_t SamplesCount, typename WeightType = float, typename URBG = std::mt19937, typename RandType = float>
 class ReservoirSamplerWeightedStatic
 {

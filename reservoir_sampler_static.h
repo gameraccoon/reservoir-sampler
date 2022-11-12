@@ -30,6 +30,9 @@
 #include <type_traits>
 #include <vector>
 
+// ReservoirSamplerStatic implements Algorithm L for reservoir sampling
+// https://en.wikipedia.org/wiki/Reservoir_sampling#Optimal:_Algorithm_L
+// Objects of the class don't allocate memory on heap (unless stored types allocate data themselves)
 template<typename T, size_t SamplesCount, typename URBG = std::mt19937, typename RandType = float>
 class ReservoirSamplerStatic
 {

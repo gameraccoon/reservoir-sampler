@@ -29,6 +29,8 @@
 #include <type_traits>
 #include <vector>
 
+// ReservoirSamplerWeighted implements Algorithm A-ExpJ for reservoir sampling
+// https://en.wikipedia.org/wiki/Reservoir_sampling#Algorithm_A-ExpJ
 template<typename T, typename WeightType = float, typename URBG = std::mt19937, typename RandType = float>
 class ReservoirSamplerWeighted
 {

@@ -29,6 +29,8 @@
 #include <type_traits>
 #include <vector>
 
+// ReservoirSampler implements Algorithm L for reservoir sampling
+// https://en.wikipedia.org/wiki/Reservoir_sampling#Optimal:_Algorithm_L
 template<typename T, typename URBG = std::mt19937, typename RandType = float>
 class ReservoirSampler
 {
