@@ -33,13 +33,26 @@
 // ReservoirSamplerStatic implements Algorithm L for reservoir sampling
 // https://en.wikipedia.org/wiki/Reservoir_sampling#Optimal:_Algorithm_L
 // Objects of the class don't allocate memory on heap (unless stored types allocate data themselves)
-template<typename T, size_t SamplesCount, typename URBG = std::mt19937, typename RandType = float>
+template<typename T, size_t SamplesCount, typename URNG = std::mt19937, typename RandType = float>
 class ReservoirSamplerStatic
 {
 public:
-	template<typename URBGT = URBG, typename = std::enable_if_t<!std::is_same_v<std::decay_t<URBGT>, ReservoirSamplerStatic<T, SamplesCount, URBG, RandType>>>>
-	explicit ReservoirSamplerStatic(URBGT&& rand = std::mt19937{std::random_device{}()})
-		: mRand(std::forward<URBGT>(rand))
+	// C++17 doesn't support std::span, so we can do this instead
+	struct ResultSpan
+	{
+		T* data;
+		size_t size;
+
+		T* begin() { return data; }
+		const T* begin() const { return data; }
+		T* end() { return data + size; }
+		const T* end() const { return data + size; }
+	};
+
+public:
+	template<typename URNG_T = URNG, typename = std::enable_if_t<!std::is_same_v<std::decay_t<URNG_T>, ReservoirSamplerStatic<T, SamplesCount, URNG, RandType>>>>
+	explicit ReservoirSamplerStatic(URNG_T&& rand = std::mt19937{std::random_device{}()})
+		: mRand(std::forward<URNG_T>(rand))
 	{
 		static_assert(std::is_floating_point_v<RandType>, "RandType should be floating point type");
 		static_assert(SamplesCount > 0, "SamplesCount should not be zero");
@@ -84,25 +97,25 @@ public:
 	ReservoirSamplerStatic& operator=(ReservoirSamplerStatic&&) noexcept = delete;
 
 	template<typename E, typename = std::enable_if_t<!std::is_lvalue_reference_v<E> && std::is_move_constructible_v<T> && std::is_same_v<std::decay_t<E>, T>>>
-	void addElement(E&& element)
+	void sampleElement(E&& element)
 	{
 		emplace<true>(std::move(element));
 	}
 
-	void addElement(const T& element)
+	void sampleElement(const T& element)
 	{
 		emplace<true>(std::ref(element));
 	}
 
 	template<typename... Args>
-	void emplaceElement(Args&&... arguments)
+	void sampleElementEmplace(Args&&... arguments)
 	{
 		emplace<false>(std::forward<Args>(arguments)...);
 	}
 
-	std::pair<const T*, size_t> getResult() const
+	ResultSpan getResult() const
 	{
-		return std::make_pair(mElements, mFilledElementsCount);
+		return ResultSpan(mElements, mFilledElementsCount);
 	}
 
 	std::vector<T> consumeResult()
@@ -128,29 +141,29 @@ public:
 		mFilledElementsCount = 0;
 	}
 
-	// optionally use this function in combination with addDummyElement in case creation of an object is expensive
-	// you can call addDummyElement every time this method returns false as in these cases the objects will be skipped
-	bool willNextBeConsidered() const
+	// optionally use this function in combination with skipNextElement in case creation of an object is expensive
+	// you can call skipNextElement every time this method returns false as in these cases the objects will be skipped
+	bool willNextElementBeConsidered() const
 	{
 		return mIndexesToJumpOver == 0;
 	}
 
-	// optionally use this in combination with willNextBeConsidered, refer to the comment above willNextBeConsidered
-	void addDummyElement()
+	// optionally use this in combination with willNextElementBeConsidered, refer to the comment above willNextElementBeConsidered
+	void skipNextElement()
 	{
-		assert(!willNextBeConsidered());
+		assert(!willNextElementBeConsidered());
 		--mIndexesToJumpOver;
 	}
 
 	// optionally use in case in combination with jumpAhead to skip elements that are not going to be considered
 	// in case iterating over these elements can be skipped
-	size_t getNextElementsSkippedNumber()
+	size_t getNextSkippedElementsCount()
 	{
 		return mIndexesToJumpOver;
 	}
 
-	// optionally use this in combination with getNextElementsSkippedNumber,
-	// refer to the comment above getNextElementsSkippedNumber
+	// optionally use this in combination with getNextSkippedElementsCount,
+	// refer to the comment above getNextSkippedElementsCount
 	void jumpAhead(size_t elementsToJumpOver)
 	{
 		assert(elementsToJumpOver <= mIndexesToJumpOver);
@@ -216,7 +229,7 @@ private:
 private:
 	size_t mIndexesToJumpOver = 0;
 	RandType mWeightJumpOver {};
-	URBG mRand;
+	URNG mRand;
 	std::uniform_real_distribution<RandType> mUniformDist{static_cast<RandType>(0.0), static_cast<RandType>(1.0)};
 	size_t mFilledElementsCount = 0;
 	T* mElements = nullptr;

@@ -33,13 +33,26 @@
 // ReservoirSamplerWeightedStatic implements Algorithm A-ExpJ for reservoir sampling
 // https://en.wikipedia.org/wiki/Reservoir_sampling#Algorithm_A-ExpJ
 // Objects of the class don't allocate memory on heap (unless stored types allocate data themselves)
-template<typename T, size_t SamplesCount, typename WeightType = float, typename URBG = std::mt19937, typename RandType = float>
+template<typename T, size_t SamplesCount, typename WeightType = float, typename URNG = std::mt19937, typename RandType = float>
 class ReservoirSamplerWeightedStatic
 {
 public:
-	template<typename URBGT = URBG, typename = std::enable_if_t<!std::is_same_v<std::decay_t<URBGT>, ReservoirSamplerWeightedStatic<T, SamplesCount, WeightType, URBG, RandType>>>>
-	explicit ReservoirSamplerWeightedStatic(URBGT&& rand = std::mt19937{std::random_device{}()})
-		: mRand(std::forward<URBGT>(rand))
+	// C++17 doesn't support std::span, so we can do this instead
+	struct ResultSpan
+	{
+		T* data;
+		size_t size;
+
+		T* begin() { return data; }
+		const T* begin() const { return data; }
+		T* end() { return data + size; }
+		const T* end() const { return data + size; }
+	};
+
+public:
+	template<typename URNG_T = URNG, typename = std::enable_if_t<!std::is_same_v<std::decay_t<URNG_T>, ReservoirSamplerWeightedStatic<T, SamplesCount, WeightType, URNG, RandType>>>>
+	explicit ReservoirSamplerWeightedStatic(URNG_T&& rand = std::mt19937{std::random_device{}()})
+		: mRand(std::forward<URNG_T>(rand))
 	{
 		static_assert(std::is_arithmetic_v<WeightType>, "WeightType should be arithmetic type");
 		static_assert(std::is_floating_point_v<RandType>, "RandType should be floating point type");
@@ -93,25 +106,25 @@ public:
 	ReservoirSamplerWeightedStatic& operator=(ReservoirSamplerWeightedStatic&&) noexcept = delete;
 
 	template<typename E, typename = std::enable_if_t<!std::is_lvalue_reference_v<E> && std::is_move_constructible_v<T> && std::is_same_v<std::decay_t<E>, T>>>
-	void addElement(WeightType weight, E&& element)
+	void sampleElement(WeightType weight, E&& element)
 	{
 		emplace<true>(weight, std::move(element));
 	}
 
-	void addElement(WeightType weight, const T& element)
+	void sampleElement(WeightType weight, const T& element)
 	{
 		emplace<true>(weight, std::ref(element));
 	}
 
 	template<typename... Args>
-	void emplaceElement(WeightType weight, Args&&... arguments)
+	void sampleElementEmplace(WeightType weight, Args&&... arguments)
 	{
 		emplace<false>(weight, std::forward<Args>(arguments)...);
 	}
 
-	std::pair<const T*, size_t> getResult() const
+	ResultSpan getResult() const
 	{
-		return std::make_pair(mElements, mFilledElementsCount);
+		return ResultSpan(mElements, mFilledElementsCount);
 	}
 
 	std::vector<T> consumeResult()
@@ -136,17 +149,17 @@ public:
 		mFilledElementsCount = 0;
 	}
 
-	// optionally use this function in combination with addDummyElement in case creation of an object is expensive
-	// you can call addDummyElement every time this method returns false as in these cases the objects will be skipped
-	bool willNextBeConsidered(WeightType weight) const
+	// optionally use this function in combination with skipNextElement in case creation of an object is expensive
+	// you can call skipNextElement every time this method returns false as in these cases the objects will be skipped
+	bool willNextElementBeConsidered(WeightType weight) const
 	{
 		return (mWeightJumpOver - weight) <= 0;
 	}
 
-	// optionally use this in combination with willNextBeConsidered, refer to the comment above willNextBeConsidered
-	void addDummyElement(WeightType weight)
+	// optionally use this in combination with willNextElementBeConsidered, refer to the comment above willNextElementBeConsidered
+	void skipNextElement(WeightType weight)
 	{
-		assert(!willNextBeConsidered(weight));
+		assert(!willNextElementBeConsidered(weight));
 		mWeightJumpOver -= static_cast<RandType>(weight);
 	}
 
@@ -225,7 +238,7 @@ private:
 
 private:
 	RandType mWeightJumpOver {};
-	URBG mRand;
+	URNG mRand;
 	std::uniform_real_distribution<RandType> mUniformDist{static_cast<RandType>(0.0), static_cast<RandType>(1.0)};
 	size_t mFilledElementsCount = 0;
 	alignas(HeapItem) std::byte mHeapData[sizeof(HeapItem)*SamplesCount];

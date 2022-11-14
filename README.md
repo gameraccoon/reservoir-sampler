@@ -25,12 +25,11 @@ ReservoirSampler<std::string> randomWordsSampler{5};
 std::ifstream infile("10000_words.txt");
 std::string input;
 while (infile >> input) {
-    randomWordsSampler.addElement(input);
+    randomWordsSampler.sampleElement(input);
 }
 
-const auto [data, count] = randomWordsSampler.getResult();
-for (size_t i = 0; i < count; ++i) {
-    std::cout << data[i] << "\n";
+for (const std::string& word : randomWordsSampler.getResult()) {
+    std::cout << word << "\n";
 }
 ```
 
@@ -44,7 +43,7 @@ The type of the weight can be set as a template parameter and can be integer as 
 ReservoirSamplerWeighted<GoalRecording> recordingsSampler{5};
 ...
 void OnGoalScored() {
-    recordingsSampler.addElement(calculateGoalWeight(), getLastFiveSecondsRecording());
+    recordingsSampler.sampleElement(calculateGoalWeight(), getLastFiveSecondsRecording());
 }
 ...
 void OnMatchEnded() {
@@ -64,7 +63,7 @@ ReservoirSampler<std::string> randomWordsSampler{5, rand};
 std::ifstream infile("10000_words.txt");
 std::string input;
 while (infile >> input) {
-    randomWordsSampler.addElement(input);
+    randomWordsSampler.sampleElement(input);
 }
 ...
 ```
@@ -80,7 +79,7 @@ ReservoirSamplerStatic<std::string, 5> randomWordsSampler;
 std::ifstream infile("10000_words.txt");
 std::string input;
 while (infile >> input) {
-    randomWordsSampler.addElement(input);
+    randomWordsSampler.sampleElement(input);
 }
 ...
 ```
@@ -91,23 +90,20 @@ There are two cases that are covered:
 1. The objects that have heavy constructors
 1. The objects that have heavy logic to prepare data to be constructed
 
-The first case is pretty simple, use `emplaceElement` and provide the constructor arguments, the actual construction will take place only if the element is considered to be added.
+The first case is pretty simple, use `sampleElementEmplace` and provide the constructor arguments, the actual construction will take place only if the element is considered to be added.
 
-For the second case you can use a combination of `willBeConsidered` and `addDummy` together with the `addElement`/`emplaceElement` that you would use normally
+For the second case you can use a combination of `willBeConsidered` and `addDummy` together with the `sampleElement`/`sampleElementEmplace` that you would use normally
 
 ```cpp
 ReservoirSamplerWeighted<GoalRecording> recordingsSampler{5};
 ...
 void OnGoal() {
     const float goalWeight = calculateGoalWeight();
-    if (recordingsSampler.willNextBeConsidered(goalWeight))
-    {
+    if (recordingsSampler.willNextElementBeConsidered(goalWeight)) {
         // getLastFiveSecondsRecording() performs potentially heavy operations
-        recordingsSampler.addElement(goalWeight, getLastFiveSecondsRecording());
-    }
-    else
-    {
-        recordingsSampler.addDummyElement();
+        recordingsSampler.sampleElement(goalWeight, getLastFiveSecondsRecording());
+    } else {
+        recordingsSampler.skipNextElement();
     }
 }
 ...
@@ -123,8 +119,8 @@ ReservoirSampler<MyElement> recordingsSampler{5};
 ...
 void OnBatchReceived(const std::vector<MyElement>& batch) {
     for (size_t i = 0; i < batch.size(); ++i) {
-        sampler.addElement(batch[i]);
-        const size_t skipAmount = std::min(sampler.getNextElementsSkippedNumber(), batch.size() - i - 1);
+        sampler.sampleElement(batch[i]);
+        const size_t skipAmount = std::min(sampler.getNextSkippedElementsCount(), batch.size() - i - 1);
         i += skipAmount;
         sampler.jumpAhead(skipAmount);
     }
