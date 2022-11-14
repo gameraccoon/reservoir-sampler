@@ -138,6 +138,15 @@ public:
 		return result;
 	}
 
+	size_t getResultSize() const { return mFilledElementsCount; }
+
+	// outRawData should point to a C-array with enough memory to fit getResultSize() elements
+	void consumeResultTo(T* outRawData)
+	{
+		std::move(mElements, mElements + mFilledElementsCount, outRawData);
+		reset();
+	}
+
 	// fully resets the state and cleans all the stored data, allowing to be reused for a new sampling
 	void reset()
 	{
