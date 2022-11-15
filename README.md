@@ -92,7 +92,7 @@ There are two cases that are covered:
 
 The first case is pretty simple, use `sampleElementEmplace` and provide the constructor arguments, the actual construction will take place only if the element is considered to be added.
 
-For the second case you can use a combination of `willBeConsidered` and `addDummy` together with the `sampleElement`/`sampleElementEmplace` that you would use normally
+For the second case you can use a combination of `willNextElementBeConsidered` and `skipNextElement` together with the `sampleElement`/`sampleElementEmplace` that you would use normally
 
 ```cpp
 ReservoirSamplerWeighted<GoalRecording> recordingsSampler{5};
