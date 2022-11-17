@@ -93,8 +93,34 @@ public:
 		other.reset();
 	}
 
-	ReservoirSamplerStatic& operator=(const ReservoirSamplerStatic&) = delete;
-	ReservoirSamplerStatic& operator=(ReservoirSamplerStatic&&) noexcept = delete;
+	ReservoirSamplerStatic& operator=(const ReservoirSamplerStatic& other)
+	{
+		reset();
+		mIndexesToJumpOver = other.mIndexesToJumpOver;
+		mWeightJumpOver = other.mWeightJumpOver;
+		mFilledElementsCount = other.mFilledElementsCount;
+
+		for (size_t i = 0; i < mFilledElementsCount; ++i)
+		{
+			new (mElements + i) T(other.mElements[i]);
+		}
+		return *this;
+	}
+
+	ReservoirSamplerStatic& operator=(ReservoirSamplerStatic&& other) noexcept
+	{
+		reset();
+		mIndexesToJumpOver = other.mIndexesToJumpOver;
+		mWeightJumpOver = other.mWeightJumpOver;
+		mFilledElementsCount = other.mFilledElementsCount;
+
+		for (size_t i = 0; i < mFilledElementsCount; ++i)
+		{
+			new (mElements + i) T(std::move(other.mElements[i]));
+		}
+		other.reset();
+		return *this;
+	}
 
 	template<typename E, typename = std::enable_if_t<!std::is_lvalue_reference_v<E> && std::is_move_constructible_v<T> && std::is_same_v<std::decay_t<E>, T>>>
 	void sampleElement(E&& element)
