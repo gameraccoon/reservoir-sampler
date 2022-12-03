@@ -62,8 +62,6 @@ public:
 		static_assert(std::is_arithmetic_v<WeightType>, "WeightType should be arithmetic type");
 		static_assert(std::is_floating_point_v<RandType>, "RandType should be floating point type");
 		static_assert(SamplesCount > 0, "SamplesCount should not be zero");
-		mPriorityHeap = reinterpret_cast<HeapItem*>(mHeapData);
-		mElements = reinterpret_cast<T*>(mData);
 	}
 
 	~ReservoirSamplerWeightedStatic()
@@ -77,9 +75,6 @@ public:
 		, mUniformDist(other.mUniformDist)
 		, mFilledElementsCount(other.mFilledElementsCount)
 	{
-		mPriorityHeap = reinterpret_cast<HeapItem*>(mHeapData);
-		mElements = reinterpret_cast<T*>(mData);
-
 		std::memcpy(mPriorityHeap, other.mPriorityHeap, sizeof(HeapItem)*mFilledElementsCount);
 
 		for (size_t i = 0; i < mFilledElementsCount; ++i)
@@ -94,9 +89,6 @@ public:
 		, mUniformDist(other.mUniformDist)
 		, mFilledElementsCount(other.mFilledElementsCount)
 	{
-		mPriorityHeap = reinterpret_cast<HeapItem*>(mHeapData);
-		mElements = reinterpret_cast<T*>(mData);
-
 		std::memcpy(mPriorityHeap, other.mPriorityHeap, sizeof(HeapItem)*mFilledElementsCount);
 
 		for (size_t i = 0; i < mFilledElementsCount; ++i)
@@ -283,6 +275,6 @@ private:
 	size_t mFilledElementsCount = 0;
 	alignas(HeapItem) std::byte mHeapData[sizeof(HeapItem)*SamplesCount];
 	alignas(T) std::byte mData[sizeof(T)*SamplesCount];
-	HeapItem* mPriorityHeap = nullptr;
-	T* mElements = nullptr;
+	HeapItem* const mPriorityHeap = reinterpret_cast<HeapItem*>(mHeapData);
+	T* const mElements = reinterpret_cast<T*>(mData);
 };

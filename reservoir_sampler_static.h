@@ -61,7 +61,6 @@ public:
 	{
 		static_assert(std::is_floating_point_v<RandType>, "RandType should be floating point type");
 		static_assert(SamplesCount > 0, "SamplesCount should not be zero");
-		mElements = reinterpret_cast<T*>(mData);
 	}
 
 	~ReservoirSamplerStatic()
@@ -76,7 +75,6 @@ public:
 		, mUniformDist(other.mUniformDist)
 		, mFilledElementsCount(other.mFilledElementsCount)
 	{
-		mElements = reinterpret_cast<T*>(mData);
 		for (size_t i = 0; i < mFilledElementsCount; ++i)
 		{
 			new (mElements + i) T(other.mElements[i]);
@@ -90,7 +88,6 @@ public:
 		, mUniformDist(other.mUniformDist)
 		, mFilledElementsCount(other.mFilledElementsCount)
 	{
-		mElements = reinterpret_cast<T*>(mData);
 		for (size_t i = 0; i < mFilledElementsCount; ++i)
 		{
 			new (mElements + i) T(std::move(other.mElements[i]));
@@ -272,6 +269,6 @@ private:
 	URNG mRand;
 	std::uniform_real_distribution<RandType> mUniformDist{static_cast<RandType>(0.0), static_cast<RandType>(1.0)};
 	size_t mFilledElementsCount = 0;
-	T* mElements = nullptr;
+	T* const mElements = reinterpret_cast<T*>(mData);
 	alignas(T) std::byte mData[sizeof(T)*SamplesCount];
 };
