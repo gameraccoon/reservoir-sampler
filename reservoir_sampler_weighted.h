@@ -280,7 +280,7 @@ private:
 	const size_t mSamplesCount;
 	RandType mWeightJumpOver {};
 	URNG mRand;
-	 std::uniform_real_distribution<RandType> mUniformDist{static_cast<RandType>(0.0), static_cast<RandType>(1.0)};
+	std::uniform_real_distribution<RandType> mUniformDist{static_cast<RandType>(0.0), static_cast<RandType>(1.0)};
 	size_t mFilledElementsCount = 0;
 	void* mData = nullptr;
 	HeapItem* mPriorityHeap = nullptr;
