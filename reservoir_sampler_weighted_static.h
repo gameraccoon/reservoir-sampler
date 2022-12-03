@@ -40,6 +40,11 @@ public:
 	// C++17 doesn't support std::span, so we can do this instead
 	struct ResultSpan
 	{
+		ResultSpan(T* data, size_t size)
+			: data(data)
+			, size(size)
+		{}
+
 		T* data;
 		size_t size;
 
