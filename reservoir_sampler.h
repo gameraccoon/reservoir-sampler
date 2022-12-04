@@ -252,7 +252,7 @@ private:
 	template<bool isT, typename... Args>
 	void replaceElement(Args&&... arguments)
 	{
-		const size_t pos = mRand() % mSamplesCount;
+		const size_t pos = mSamplesCount > 1 ? (mRand() % mSamplesCount) : 0;
 		if constexpr (isT && (std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>))
 		{
 			mElements[pos] = std::forward<Args...>(arguments...);
