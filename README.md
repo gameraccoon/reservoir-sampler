@@ -128,6 +128,23 @@ void OnBatchReceived(const std::vector<MyElement>& batch) {
 ...
 ```
 
+## Performance
+
+Minimum to no allocations are done depending on the version of the sampler used and the data stored.
+
+As mentioned above, the samplers utilize the algorithms with exponential jumps that greatly reduce calls to random, which are usually very expensive. When using `sampleElementEmplace` it is possible to also reduce amount of object constructions, and it is possible to reduce the costs of preparing data for the elements with techniques of "handling heavy to construct elements" and "skipping iterations" described above.
+
+### Sampling without exponential jumps
+
+And if that's not enough, there's `ReservoirSamplerLinear` that doesn't utilize exponential jumps giving the best performance when sampling from very small streams of elements.
+
+However `ReservoirSamplerLinear` has many limitations:
+
+* can sample only one element (to utilize the most fitting algorithm)
+* allows only integer weights (floating point weights require more calculations making `ReservoirSamplerWeightedStatic` more performant even on relatively small streams)
+* prone to integer overflows (the sum of weights passed through an instance should fit in the type provided for storing weights)
+* very inefficient with big streams compared to other samplers (how "big" depends on your weight type and platform, but generally I would avoid it for streams of more than 100 elements)
+
 ## Tests
 
 You can find unit tests for every sampler class here: https://github.com/gameraccoon/reservoir-sampler-tests
