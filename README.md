@@ -100,7 +100,7 @@ void OnGoal() {
         // getLastFiveSecondsRecording() performs potentially heavy operations
         recordingsSampler.sampleElement(goalWeight, getLastFiveSecondsRecording());
     } else {
-        recordingsSampler.skipNextElement();
+        recordingsSampler.skipNextElement(goalWeight);
     }
 }
 ...
