@@ -13,10 +13,10 @@ Features:
 ## Examples of use
 ### Simple
 
-Here we can have as many lines of user input as we want, and will store only five of them at a time.
+Here we can have as many lines of user input as we want, and will store only five of them at any time.
 
 ```cpp
-// print five random words from file
+// print five random words from file (one word per line)
 ReservoirSampler<std::string> randomWordsSampler{5};
 
 std::ifstream infile("10000_words.txt");
@@ -50,7 +50,7 @@ void OnMatchEnded() {
 
 ### Store random by reference
 
-If we already have a RNG that will outlive our sampler, then we can just pass it by reference to avoid storing a full copy of the RNG in the instance.
+If we already have an RNG that will outlive our sampler, we can just pass it by reference instead of creating a new one for the instance.
 
 ```cpp
 // print five random words from file
@@ -67,7 +67,7 @@ while (infile >> input) {
 
 ### Static (non allocating)
 
-If we know at compile time how many samples we want to get, then we can use non-allocating versions `ReservoirSamplerStatic` or `ReservoirSamplerWeightedStatic`
+If we know how many samples we want to get at compile time, we can use the non-allocating versions: `ReservoirSamplerStatic` or `ReservoirSamplerWeightedStatic`
 
 ```cpp
 // print five random words from file
@@ -85,7 +85,7 @@ while (infile >> input) {
 
 There are two cases that are covered:
 1. The objects that have heavy constructors
-1. The objects that have heavy logic to prepare data to be constructed
+1. The objects that have heavy logic to even prepare the data to be constructed
 
 The first case is pretty simple, use `sampleElementEmplace` and provide the constructor arguments, the actual construction will take place only if the element is considered to be added.
 
