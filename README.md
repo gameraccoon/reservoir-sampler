@@ -1,6 +1,3 @@
-[![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/gameraccoon/hide-and-seek/blob/develop/License.txt)  
-[![Ubuntu GCC - build and run unit-tests](https://github.com/gameraccoon/reservoir-sampler-tests/actions/workflows/run-tests-ubuntu-gcc.yml/badge.svg?branch=main)](https://github.com/gameraccoon/reservoir-sampler-tests/actions/workflows/run-tests-ubuntu-gcc.yml) [![Windows MSVC - build and run unit tests](https://github.com/gameraccoon/reservoir-sampler-tests/actions/workflows/run-tests-windows-msvc.yml/badge.svg?branch=main)](https://github.com/gameraccoon/reservoir-sampler-tests/actions/workflows/run-tests-windows-msvc.yml)
-
 Header-only C++17 library for performing [Reservoir Sampling](https://en.wikipedia.org/wiki/Reservoir_sampling).
 
 Features:
